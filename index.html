@@ -1,0 +1,141 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Chess Coach</title>
+<style>
+:root{--bg:#eef1f5;--fg:#1c2330;--mut:#5d6879;--card:#fff;--ln:#d3d9e3;--lt:#dfe6ee;--dk:#7b95b3;--sel:#f2d95c;--ac:#3b4cca;--wr:#fff3d6;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141922;--fg:#e8ecf3;--mut:#9aa6b8;--card:#1e2530;--ln:#334055;--lt:#a9b8cc;--dk:#566f8f;--sel:#c9ad2e;--ac:#8d9bff;--wr:#3a3217}}
+:root[data-theme="dark"]{--bg:#141922;--fg:#e8ecf3;--mut:#9aa6b8;--card:#1e2530;--ln:#334055;--lt:#a9b8cc;--dk:#566f8f;--sel:#c9ad2e;--ac:#8d9bff;--wr:#3a3217}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 Georgia,'Times New Roman',serif}
+.app{display:flex;gap:24px;flex-wrap:wrap;justify-content:center;max-width:1000px;margin:auto;padding:16px}
+#bd{--w:min(92vw,560px);display:grid;grid-template-columns:repeat(8,1fr);width:var(--w);height:var(--w);border:2px solid var(--ln)}
+.q{position:relative;display:flex;align-items:center;justify-content:center;font-size:calc(var(--w)/8*.78);line-height:1;cursor:pointer;user-select:none}
+.q::before{content:attr(data-n);position:absolute;left:3px;bottom:1px;font:10px system-ui,sans-serif;color:var(--fg);opacity:.55}
+.l{background:var(--lt)}.d{background:var(--dk)}
+.w{color:#fff;text-shadow:0 0 2px #000,0 0 3px #000,0 0 3px #000}.b{color:#10151f;text-shadow:0 0 1px #fff}
+.m{box-shadow:inset 0 0 0 3px var(--ac)}.h{box-shadow:inset 0 0 0 5px #e08a1e}.s{background:var(--sel)}
+.t::after{content:'';width:28%;height:28%;border-radius:50%;background:rgba(20,30,50,.35)}
+.p{flex:1;min-width:280px;max-width:380px;display:flex;flex-direction:column;gap:12px}
+.c{background:var(--card);border:1px solid var(--ln);border-radius:6px;padding:12px 14px}
+h1{font-size:22px;margin:0}#st{color:var(--mut);font:13px system-ui,sans-serif}
+#msg{font-size:17px;min-height:52px}#ls b,#co b{display:block;margin-bottom:2px}#ls{font-size:14px}
+#wn{background:var(--wr);display:none}#wn.on{display:block}
+button{font:14px system-ui,sans-serif;padding:7px 12px;border:1px solid var(--ln);border-radius:6px;background:var(--card);color:var(--fg);cursor:pointer}
+button:hover{border-color:var(--ac)}button:focus-visible{outline:2px solid var(--ac)}button.pr{background:var(--ac);color:var(--bg);border-color:var(--ac)}
+.r{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.g{display:none}.pz .zp,.gm .zg{display:inline-block}
+</style></head><body><div class="app"><div id="bd"></div>
+<div class="p"><div><h1>Chess Coach</h1><div id="st"></div></div>
+<div id="in" class="c"><b>Welcome to Chess Coach.</b> You learn by playing, and a coach card explains what happened after every move. Click a piece, then a dot to move. Choose how to start:<div class="r"><button id="w1" class="pr">Puzzle drill (10 puzzles, about 10 minutes)</button><button id="w2">Play a game (about 30 minutes)</button></div></div>
+<div class="c"><div class="r" style="margin:0"><button id="bp" class="pr">Puzzle drill</button><button id="bg">Play a game</button></div>
+<div id="msg"></div><div id="tp" style="display:none"></div><div class="r"><button id="hb">Hint</button><button id="nx" class="g zp">Next puzzle</button><button id="rs" class="g zg">Resign</button></div></div>
+<div id="wn" class="c"><div id="wt"></div><div class="r"><button id="tk" class="pr">Take back</button><button id="pa">Play it anyway</button></div></div>
+<div id="co" class="c" style="display:none"><b id="ch"></b><div id="cb"></div></div><div class="c" id="ls"></div></div></div>
+<script>
+const $=i=>document.getElementById(i),isW=p=>p<'a',G={K:'♚',Q:'♛',R:'♜',B:'♝',N:'♞',P:'♟'};
+const N=[-33,-31,-18,-14,14,18,31,33],KD=[-17,-16,-15,-1,1,15,16,17],BD=[-17,-15,15,17],RD=[-16,-1,1,16];
+const V={P:100,N:300,B:320,R:500,Q:900,K:0},RT={116:'KQ',112:'Q',119:'K',4:'kq',0:'q',7:'k'};
+const LS=[['Know the values','Pawn 1, knight 3, bishop 3, rook 5, queen 9. Trade up, never down: a knight for a pawn is a loss.'],
+['Ask two questions every move','Before moving: what can my opponent capture right now? After picking a move: what does it leave undefended?'],
+['Look at checks first','When hunting a checkmate, list every check. One of them often leaves the king no square to run to.'],
+['Free pieces','A piece is free if nothing guards it, or if the capturer is worth less than the victim. Scan for these every turn.'],
+['Opening basics','Take the center with a pawn or two, develop knights then bishops, castle early, and keep the queen home.'],
+['Forks','A knight that attacks two pieces at once wins one of them. Look for squares where your knight hits king and queen.'],
+['Trade when ahead','Up material? Swap pieces. Fewer pieces means less counterplay for the side that is behind.'],
+['Endgame','The king is strong when few pieces remain. Walk it toward the action and push pawns that have no enemy pawn in front.']];
+let ST={};try{ST=JSON.parse(localStorage.getItem('cc')||'{}')}catch(e){}
+let ud='',ed='',bw=0,R=ST.R||250,gn=ST.gn||0,ps=ST.ps||0,pt=ST.pt||0,li=ST.li||0,S,me='w',mode='p',sel=null,tg=[],mvs=[],hl=[],lm=[],hint=0,over=0,busy=0,pend=null,keys=[],pz=null,fail=0,dn=0,dc=0,eloE=0;
+const save=()=>{try{localStorage.setItem('cc',JSON.stringify({R,gn,ps,pt,li,seen:ST.seen}))}catch(e){}};
+const sqn=i=>'abcdefgh'[i&7]+(8-(i>>4)),key=s=>s.b.join('')+s.t+s.c+s.e;
+const nm=(s,m)=>(s.b[m.f].toUpperCase()=='P'?'':s.b[m.f].toUpperCase())+sqn(m.f)+(s.b[m.t]||m.ep?'x':'-')+sqn(m.t);
+const PN={P:'pawn',N:'knight',B:'bishop',R:'rook',Q:'queen',K:'king'};
+function coach(h,t){$('co').style.display='block';$('ch').textContent=h;$('cb').textContent=t}
+function dsc(s,m){const p=s.b[m.f],c=s.b[m.t],n=mk(s,m),us=s.t==me,o=us?'You':'The engine';
+let r=m.cs?o+' castled, tucking the king away and bringing a rook into play.':(c||m.ep)?o+' captured a '+PN[(c||'p').toUpperCase()]+' on '+sqn(m.t)+' with a '+PN[p.toUpperCase()]+'.':o+' moved a '+PN[p.toUpperCase()]+' to '+sqn(m.t)+'.';
+if(m.p)r+=' The pawn promoted.';if(inChk(n))r+=' That gives check.';
+if(c||m.ep){const rec=att(n.b,m.t,n.t=='w');r+=us?(rec?' It can be recaptured, so count the trade.':' Nothing can recapture it: a free piece.'):(rec?' You can recapture it.':' You cannot recapture it. Next time, check what your pieces protect.')}
+return r}
+function start(){const b=Array(128).fill(0);'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR'.split('/').forEach((row,r)=>{let f=0;for(const ch of row){if(ch>'0'&&ch<'9')f+=+ch;else b[r*16+f++]=ch}});return{b,t:'w',c:'KQkq',e:-1,h:0}}
+function att(b,sq,w){const u=w?1:-1;for(const e of[15,17]){const t=sq+u*e;if(!(t&136)&&b[t]==(w?'P':'p'))return 1}
+for(const d of N){const t=sq+d;if(!(t&136)&&b[t]==(w?'N':'n'))return 1}
+for(const d of KD){let t=sq+d;if(!(t&136)&&b[t]==(w?'K':'k'))return 1;const o=d==1||d==-1||d==16||d==-16;
+for(;!(t&136);t+=d){const q=b[t];if(q){if(q==(w?'Q':'q')||q==(o?(w?'R':'r'):(w?'B':'b')))return 1;break}}}return 0}
+function ks(b,w){const k=w?'K':'k';for(let i=0;i<128;i++)if(b[i]==k)return i;return 0}
+function gen(s){const M=[],w=s.t=='w',b=s.b;
+for(let i=0;i<128;i++){if(i&136)continue;const p=b[i];if(!p||isW(p)!=w)continue;const u=p.toUpperCase();
+if(u=='P'){const d=w?-16:16,r=i>>4;
+const add=(t,x)=>{if((t>>4)==(w?0:7))for(const q of'QRBN')M.push({f:i,t,p:w?q:q.toLowerCase()});else M.push({f:i,t,...x})};
+if(!b[i+d]){add(i+d);if(r==(w?6:1)&&!b[i+2*d])M.push({f:i,t:i+2*d,dp:1})}
+for(const e of[d-1,d+1]){const t=i+e;if(t&136)continue;if(b[t]&&isW(b[t])!=w)add(t);else if(t==s.e)M.push({f:i,t,ep:1})}}
+else{const ds=u=='N'?N:u=='B'?BD:u=='R'?RD:KD,sl=u=='B'||u=='R'||u=='Q';
+for(const d of ds)for(let t=i+d;!(t&136);t+=d){const q=b[t];if(q){if(isW(q)!=w)M.push({f:i,t});break}M.push({f:i,t});if(!sl)break}}}
+return M}
+function mk(s,m){const b=s.b.slice(),p=b[m.f],w=s.t=='w';let c=s.c,e=-1;const cap=b[m.t]||m.ep||p.toUpperCase()=='P';
+b[m.t]=m.p||p;b[m.f]=0;if(m.ep)b[m.t+(w?16:-16)]=0;if(m.dp)e=m.f+(w?-16:16);
+if(m.cs){const k=m.t>m.f,rf=m.f+(k?3:-4),rt=m.f+(k?1:-1);b[rt]=b[rf];b[rf]=0}
+for(const q of[m.f,m.t])for(const ch of RT[q]||'')c=c.replace(ch,'');
+return{b,t:w?'b':'w',c,e,h:cap?0:s.h+1}}
+function legal(s){const w=s.t=='w',b=s.b,L=gen(s).filter(m=>{const n=mk(s,m);return!att(n.b,ks(n.b,w),!w)}),r=w?112:0;
+if(b[r+4]==(w?'K':'k')&&!att(b,r+4,!w)){
+if(s.c.includes(w?'K':'k')&&!b[r+5]&&!b[r+6]&&b[r+7]==(w?'R':'r')&&!att(b,r+5,!w)&&!att(b,r+6,!w))L.push({f:r+4,t:r+6,cs:1});
+if(s.c.includes(w?'Q':'q')&&!b[r+1]&&!b[r+2]&&!b[r+3]&&b[r]==(w?'R':'r')&&!att(b,r+3,!w)&&!att(b,r+2,!w))L.push({f:r+4,t:r+2,cs:1})}
+return L}
+const inChk=s=>att(s.b,ks(s.b,s.t=='w'),s.t!='w');
+function ev(s){let x=0;for(let i=0;i<128;i++){if(i&136)continue;const p=s.b[i];if(!p)continue;const u=p.toUpperCase(),w=isW(p),r=i>>4,f=i&7;let v=V[u];
+if(u=='N'||u=='B')v+=(7-Math.abs(f-3.5)-Math.abs(r-3.5))*5;if(u=='P')v+=(w?6-r:r-1)*7;x+=w?v:-v}return s.t=='w'?x:-x}
+const ord=(s,L)=>L.sort((a,b)=>sc(s,b)-sc(s,a)),sc=(s,m)=>(s.b[m.t]?V[s.b[m.t].toUpperCase()]*10-V[s.b[m.f].toUpperCase()]:0)+(m.p?800:0);
+function qs(s,a,b,d){const x=ev(s);if(x>=b||d==0)return x;if(x>a)a=x;
+for(const m of ord(s,gen(s).filter(m=>s.b[m.t]||m.ep))){const c=s.b[m.t];if(c=='K'||c=='k')return 30000;const y=-qs(mk(s,m),-b,-a,d-1);if(y>=b)return y;if(y>a)a=y}return a}
+function sr(s,d,a,b,pl){const c=inChk(s);if(d==0&&!c)return qs(s,a,b,4);const L=legal(s);if(!L.length)return c?-30000+pl:0;if(d==0)return qs(s,a,b,4);
+for(const m of ord(s,L)){const y=-sr(mk(s,m),d-1,-b,-a,pl+1);if(y>=b)return y;if(y>a)a=y}return a}
+const rs=(s,d)=>legal(s).map(m=>({m,v:-sr(mk(s,m),d-1,-30000,30000,1)}));
+function pick(s,r){const d=r<500?1:r<1100?2:3,T=20+Math.max(0,1600-r)/4,x=rs(s,d).map(o=>({m:o.m,v:Math.max(-1000,Math.min(1000,o.v))})),mx=Math.max(...x.map(o=>o.v));
+let t=0;const w=x.map(o=>(t+=Math.exp((o.v-mx)/T),t)),q=Math.random()*t;return x[w.findIndex(z=>z>=q)].m}
+const same=(a,b)=>a.f==b.f&&a.t==b.t&&(!a.p||!b.p||a.p.toUpperCase()==b.p.toUpperCase());
+function gp(ty){for(let n=0;n<60;n++){let s=start();
+for(let i=0;i<90;i++){const L=legal(s);if(!L.length)break;
+if(i>=12){if(ty=='M'){const ms=L.filter(m=>{const z=mk(s,m);return inChk(z)&&!legal(z).length});if(ms.length&&Math.random()<.7)return{s,sol:ms,ty}}
+else if(L.length>1&&L.some(m=>s.b[m.t]&&V[s.b[m.t].toUpperCase()]>=300)&&!inChk(s)){const x=rs(s,2).sort((a,b)=>b.v-a.v);if(s.b[x[0].m.t]&&x[0].v<5000&&x[0].v-x[1].v>=250)return{s,sol:[x[0].m],ty}}}
+const C=L.filter(m=>s.b[m.t]),P=C.length&&Math.random()<.5?C:L;s=mk(s,P[Math.random()*P.length|0])}}return null}
+function rate(sc,D,K){const e=1/(1+10**((D-R)/400));R=Math.max(100,Math.round(R+K*(sc-e)));save()}
+function tp(){if(mode=='p')return'';const a=S.t!='w';
+if(inChk(S))return'Tip: you are in check. Capture the checker, block it, or move the king.';
+for(let i=0;i<128;i++){if(i&136)continue;const p=S.b[i];if(p&&isW(p)==(S.t=='w')&&V[p.toUpperCase()]>=300&&att(S.b,i,a)&&!att(S.b,i,!a))return'Tip: your '+p.toUpperCase()+' on '+sqn(i)+' is attacked and unprotected. Move it or protect it.'}
+if(mvs.some(m=>{const t=S.b[m.t];return t&&V[t.toUpperCase()]>=300&&!att(mk(S,m).b,m.t,a)}))return'Tip: the engine left a piece loose. Look at your captures.';
+const n=keys.length>>1,o=['Take the center: push an e or d pawn.','Develop a knight toward the center.','Bring out a bishop.','Castle to tuck your king away.','Keep your queen home for now and finish developing.'];
+return n<5?'Tip: '+o[n]:'Tip: '+LS[(n>>2)%LS.length][1]}
+function msg(t){$('msg').textContent=t}
+function turn(){mvs=S.t==me&&!over?legal(S):[];sel=null;tg=[];hint=0;hl=[]}
+function draw(){const B=$('bd');B.innerHTML='';const fl=me=='b';
+for(let k=0;k<64;k++){const r=fl?7-(k>>3):k>>3,f=fl?7-(k&7):k&7,i=r*16+f,p=S.b[i],d=document.createElement('div');
+d.className='q '+((r+f)%2?'d':'l')+(sel===i?' s':'')+(tg.includes(i)?' t':'')+(hl.includes(i)?' h':'')+(lm.includes(i)?' m':'');
+d.dataset.n=((k>>3)==7?'abcdefgh'[f]:'')+((k&7)==0?8-r:'');
+if(p){d.textContent=G[p.toUpperCase()]+'\uFE0E';d.classList.add(isW(p)?'w':'b')}
+d.onclick=()=>click(i);B.append(d)}
+document.querySelector('.app').className='app '+(mode=='p'?'pz':'gm');
+$('st').textContent='Relative rating '+R+'. Games '+gn+'. Puzzles solved clean '+ps+'/'+pt+(mode=='p'?'. Drill '+dn+'/10':'. Engine ~'+eloE);
+const l=LS[li%LS.length];$('ls').innerHTML='<b></b><span></span><div class="r"><button id="lb">Next tip</button></div>';$('ls').firstChild.textContent=l[0];$('ls').children[1].textContent=l[1];
+$('lb').onclick=()=>{li++;save();draw()};$('wn').className='c'+(pend?' on':'')}
+function click(i){if(busy||over||pend)return;const p=S.b[i];
+if(sel!==null){const m=mvs.find(m=>m.f==sel&&m.t==i);if(m)return tryMove(m)}
+if(p&&S.t==me&&isW(p)==(me=='w')){sel=i;tg=mvs.filter(m=>m.f==i).map(m=>m.t)}else{sel=null;tg=[]}draw()}
+function tryMove(m){sel=null;tg=[];
+if(mode=='p'){if(pz.sol.some(x=>same(x,m))){const ex=pz.ty=='M'?nm(S,m)+' is checkmate: the king is attacked and has no escape square, no capture, and no block.':dsc(S,m);S=mk(S,m);lm=[m.f,m.t];over=1;dn++;if(!fail){const c=!hint;pt++;if(c)ps++;rate(c?1:.3,pz.ty=='M'?300:450,10);if(c)dc++}
+msg(fail?'Solved. Try the next one.':hint?'Solved with hints—counts as partial.':'Solved. Clean!');coach('Why it worked',ex);if(dn>=10){coach('Drill complete: '+dc+'/10 solved clean','Rating now '+R+'. '+ex+' '+(dc<7?'Run another drill and use Hint early: seeing the pattern matters more than speed.':'Strong. Try a full game to use these patterns.')+' Press Next puzzle for a fresh drill, or Play a game.');dn=0;dc=0}draw()}
+else{if(!fail){fail=1;pt++;rate(0,pz.ty=='M'?300:450,10)}msg('Not it. '+(pz.ty=='M'?'Look for a check that leaves the king no escape.':'Look for a piece you can take for free.')+' Try again.');coach('Not quite',pz.ty=='M'?'A checkmate needs the king attacked with no escape square, no capture, and no block. Which checks are available?':'The best move wins material outright. Find an enemy piece with no protection, or one worth more than your capturing piece.');const s0=S;S=mk(S,m);lm=[m.f,m.t];busy=1;draw();setTimeout(()=>{S=s0;lm=[];busy=0;turn();draw()},900)}return}
+msg('Checking your move…');draw();setTimeout(()=>{const x=rs(S,2),best=Math.max(...x.map(o=>o.v)),mine=x.find(o=>same(o.m,m)).v;
+if(best-mine>=200){const n=mk(S,m),y=rs(n,2).sort((a,b)=>b.v-a.v)[0];pend=m;bw++;$('wt').textContent='Careful: after '+nm(S,m)+', your opponent can play '+(y?nm(n,y.m):'a strong reply')+'. That costs you about '+Math.round((best-mine)/100)+' points of material. Take it back and look again?';msg('Your move.');draw()}else commit(m)},20)}
+function commit(m){pend=null;const t=nm(S,m);ud=dsc(S,m);ed='';S=mk(S,m);lm=[m.f,m.t];keys.push(key(S));after('You: '+t)}
+function fin(){const L=legal(S);if(!L.length)return inChk(S)?(S.t==me?['loss','Checkmate. You lost']:['win','Checkmate. You win!']):['draw','Stalemate'];
+if(S.h>=100)return['draw','Draw by 50 moves'];if(keys.filter(k=>k==keys[keys.length-1]).length>=3)return['draw','Draw by repetition'];
+const q=S.b.filter(x=>x&&x.toUpperCase()!='K');if(!q.length||(q.length==1&&/[NBnb]/.test(q[0])))return['draw','Draw: not enough material'];return null}
+function end(r){over=1;gn++;const o=R;rate(r[0]=='win'?1:r[0]=='draw'?.5:0,eloE,Math.max(24,64-3*gn));msg(r[1]+'. Rating '+o+' → '+R+'.');coach('Game over: what to take away',r[1]+'. Your rating moved from '+o+' to '+R+'. '+(bw>1?'The coach flagged '+bw+' moves that lost material. Do a puzzle drill to train spotting free pieces, then play again.':'Few material blunders this game. Play again to keep climbing, or drill checkmate patterns.')+' Use the buttons above to start a drill or a new game.');turn();$('tp').textContent='';draw()}
+function after(t){const e=fin();if(e)return end(e);turn();if(S.t!=me)return eng(t);msg(t+(inChk(S)?'. You are in check.':'. Your move.'));coach('What happened',((ud+' '+ed).trim()+' '+tp()).trim());draw()}
+function eng(t){busy=1;msg('Engine thinking…');draw();setTimeout(()=>{const m=pick(S,eloE),n=nm(S,m);ed=dsc(S,m);S=mk(S,m);lm=[m.f,m.t];keys.push(key(S));busy=0;after('Engine: '+n)},30)}
+function ng(){$('in').style.display='none';bw=0;ud='';ed='';mode='g';me=gn%2?'b':'w';S=start();keys=[key(S)];over=0;pend=null;busy=0;lm=[];eloE=R+60;turn();msg('You are '+(me=='w'?'White. Your move.':'Black. Engine moves first.'));coach('How a game works','Click a piece, then a dot. After each move the engine replies, and this card explains what happened with a tip. If a move would lose material I warn you first. The game ends on checkmate, a draw, or if you resign.');draw();if(S.t!=me)eng('')}
+function np(){$('in').style.display='none';mode='p';pend=null;busy=0;over=0;fail=0;lm=[];const ty=Math.random()<(R<450?.7:.4)?'M':'W';pz=gp(ty)||gp(ty=='M'?'W':'M');if(!pz){msg('Could not build a puzzle. Try again.');S=start();me='w';turn();return draw()}
+S=pz.s;me=S.t;turn();$('tp').textContent='Tip: '+(pz.ty=='M'?'List every check first. One may leave the king no escape.':'Look for an enemy piece nobody protects.');msg((me=='w'?'White':'Black')+' to move. '+(pz.ty=='M'?'Find checkmate in one.':'Win material: capture something for free.')+' Wrong tries snap back.');coach(dn?'Puzzle '+(dn+1)+' of 10':'How a drill works',(dn?'':'A drill is 10 one-move puzzles: you move, then this card explains why it worked. Wrong tries snap back, and Hint helps up to three times. ')+(pz.ty=='M'?'Goal: checkmate in one. List every check first.':'Goal: win material. Look for a piece nobody protects.'));draw()}
+$('bp').onclick=np;$('bg').onclick=ng;$('nx').onclick=()=>{if(!over&&!fail){pt++;rate(0,pz.ty=='M'?300:450,10)}np()};
+$('rs').onclick=()=>{if(mode=='g'&&!over)end(['loss','You resigned'])};
+$('tk').onclick=()=>{pend=null;msg('Move taken back. Think again.');draw()};$('pa').onclick=()=>{const m=pend;commit(m)};
+$('hb').onclick=()=>{if(over||busy||pend)return;let b,cat;if(mode=='p'){b=pz.sol[0];cat=pz.ty=='M'?'Look for a check that traps the king.':'One enemy piece can be captured for free.'}
+else{b=rs(S,2).sort((a,c)=>c.v-a.v)[0].m;cat=S.b[b.t]?'Look at captures first: something can be won.':'Nothing is free to take. Develop a piece or improve your position.'}
+hint=Math.min(3,hint+1);hl=[];if(hint==1)msg('Hint 1: '+cat);if(hint==2){hl=[b.f];msg('Hint 2: move the highlighted piece.')}if(hint==3){hl=[b.f,b.t];msg('Hint 3: '+nm(S,b))}draw()};
+$('w1').onclick=np;$('w2').onclick=ng;S=start();me='w';over=1;draw();msg('Choose a puzzle drill or a game to begin.');
+</script></body></html>
